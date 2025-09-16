@@ -1,16 +1,18 @@
 "use client";
-
 import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
+import { createClient } from "@supabase/supabase-js";
 
-interface Question {
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
+
+type Question = {
   text: string;
   options: string[];
-}
-
-interface Scores {
-  [playerId: string]: number;
-}
+  correct: string;
+};
 
 export default function Game() {
   const searchParams = useSearchParams();
@@ -18,42 +20,53 @@ export default function Game() {
   const playerId = searchParams?.get("playerId") || "guest";
 
   const [question, setQuestion] = useState<Question | null>(null);
-  const [scores, setScores] = useState<Scores>({});
+  const [scores, setScores] = useState<Record<string, number>>({}); // 👈 strongly typed
   const [index, setIndex] = useState(0);
+  const [players, setPlayers] = useState<string[]>([]);
 
   const fetchMatch = async () => {
     const res = await fetch(`/api/matchState?matchId=${matchId}`);
-    if (!res.ok) return;
-
     const data = await res.json();
     setQuestion(data.questions[data.currentIndex]);
-    setScores(data.scores);
+    setScores(data.scores || {});
     setIndex(data.currentIndex);
+    setPlayers(data.players || []);
   };
 
   const answer = async (ans: string) => {
-    const res = await fetch("/api/answer", {
+    await fetch("/api/answer", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ matchId, playerId, answer: ans }),
     });
-    if (!res.ok) return;
-
-    const data = await res.json();
-    setScores(data.scores);
-    fetchMatch();
   };
 
   useEffect(() => {
-    if (matchId) fetchMatch();
+    if (!matchId) return;
+    fetchMatch();
+
+    const channel = supabase
+      .channel(`match-${matchId}`)
+      .on("broadcast", { event: "score-update" }, (payload) => {
+        setScores(payload.payload.scores || {});
+      })
+      .on("broadcast", { event: "player-joined" }, (payload) => {
+        setPlayers(payload.payload.players || []);
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [matchId]);
 
-  if (!question) return <p>Over... come back again.</p>;
+  if (!question) return <p>Game over. Come back again.</p>;
 
   return (
     <main className="p-10">
       <h2 className="text-xl font-bold">Question {index + 1}</h2>
       <p className="mt-2">{question.text}</p>
+
       <div className="mt-4 space-y-2">
         {question.options.map((opt, i) => (
           <button
@@ -65,8 +78,15 @@ export default function Game() {
           </button>
         ))}
       </div>
-      <h3 className="mt-6 text-lg font-bold">Scores</h3>
-      <pre>{JSON.stringify(scores, null, 2)}</pre>
+
+      <h3 className="mt-6 text-lg font-bold">Players</h3>
+      <ul className="list-disc pl-6">
+        {players.map((p) => (
+          <li key={p}>
+            {p} — {scores[p] ?? 0} points
+          </li>
+        ))}
+      </ul>
     </main>
   );
 }

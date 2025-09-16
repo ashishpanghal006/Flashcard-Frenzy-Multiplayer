@@ -87,13 +87,20 @@ export default function Game() {
       </div>
 
       <h3 className="mt-6 text-lg font-bold">Players & Scores</h3>
-      <ul>
+      {/* <ul>
         {players.map((p) => (
           <li key={p}>
             {p} — {scores[p] ?? 0} points
           </li>
         ))}
-      </ul>
+      </ul> */}
+        <ul className="list-disc pl-5">
+            {Object.entries(scores).map(([player, score]) => (
+                <li key={player}>
+                    {player} — {score} points
+                </li>
+            ))}
+        </ul>
     </main>
   );
 }

@@ -3,10 +3,9 @@ import { getDb } from "@/lib/db";
 import { ObjectId } from "mongodb";
 import { createClient } from "@supabase/supabase-js";
 
-// Server-side Supabase client
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY! // ⚠️ Service key, only on server
+  process.env.SUPABASE_SERVICE_ROLE_KEY! // backend only
 );
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -26,7 +25,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     match.scores[playerId] = (match.scores[playerId] || 0) + 1;
   }
 
-  // move to next question
   match.currentIndex += 1;
 
   // update MongoDB
@@ -35,7 +33,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     { $set: { scores: match.scores, currentIndex: match.currentIndex } }
   );
 
-  // 🔥 broadcast realtime update
+  // ✅ broadcast realtime update
   await supabase.channel(`match-${matchId}`).send({
     type: "broadcast",
     event: "score-update",
@@ -45,5 +43,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     },
   });
 
-  return res.json({ correct, scores: match.scores, nextIndex: match.currentIndex });
+  res.json({ correct, scores: match.scores, nextIndex: match.currentIndex });
 }

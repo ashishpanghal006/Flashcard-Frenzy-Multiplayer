@@ -14,13 +14,14 @@ type Question = {
   correct: string;
 };
 
-type Scores = { [playerId: string]: number };
+type Scores = Record<string, number>;
 
 export default function Game() {
   const searchParams = useSearchParams();
   const matchId = searchParams?.get("matchId") || "";
   const playerId = searchParams?.get("playerId") || "guest";
 
+  const [questions, setQuestions] = useState<Question[]>([]);
   const [question, setQuestion] = useState<Question | null>(null);
   const [scores, setScores] = useState<Scores>({});
   const [index, setIndex] = useState(0);
@@ -29,10 +30,11 @@ export default function Game() {
   const fetchMatch = async () => {
     const res = await fetch(`/api/matchState?matchId=${matchId}`);
     const data = await res.json();
-    setQuestion(data.questions[data.currentIndex]);
-    setScores(data.scores || {});
+    setQuestions(data.questions);
+    setScores(data.scores);
     setIndex(data.currentIndex);
     setPlayers(data.players || []);
+    setQuestion(data.questions[data.currentIndex] || null);
   };
 
   const answer = async (ans: string) => {
@@ -47,20 +49,24 @@ export default function Game() {
     if (!matchId) return;
     fetchMatch();
 
+    // ✅ subscribe to realtime
     const channel = supabase
       .channel(`match-${matchId}`)
       .on("broadcast", { event: "score-update" }, (payload) => {
-        setScores(payload.payload.scores);
+        const { scores, currentIndex } = payload.payload;
+        setScores(scores);
+        setIndex(currentIndex);
+        setQuestion(questions[currentIndex] || null);
       })
       .on("broadcast", { event: "player-joined" }, (payload) => {
-        setPlayers(payload.payload.players);
+        setPlayers((prev) => [...new Set([...prev, payload.payload.playerId])]);
       })
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [matchId]);
+  }, [matchId, questions]);
 
   if (!question) return <p>Game over. Come back again.</p>;
 
@@ -68,7 +74,6 @@ export default function Game() {
     <main className="p-10">
       <h2 className="text-xl font-bold">Question {index + 1}</h2>
       <p className="mt-2">{question.text}</p>
-
       <div className="mt-4 space-y-2">
         {question.options.map((opt, i) => (
           <button
@@ -81,7 +86,7 @@ export default function Game() {
         ))}
       </div>
 
-      <h3 className="mt-6 text-lg font-bold">Scores</h3>
+      <h3 className="mt-6 text-lg font-bold">Players & Scores</h3>
       <ul>
         {players.map((p) => (
           <li key={p}>

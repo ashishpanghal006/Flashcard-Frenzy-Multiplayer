@@ -19,6 +19,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     questions: match.questions,
     currentIndex: match.currentIndex,
     scores: match.scores,
-    players: match.players || [], // 👈 include players here
   });
 }

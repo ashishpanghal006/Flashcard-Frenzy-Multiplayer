@@ -14,13 +14,15 @@ type Question = {
   correct: string;
 };
 
+type Scores = { [playerId: string]: number };
+
 export default function Game() {
   const searchParams = useSearchParams();
   const matchId = searchParams?.get("matchId") || "";
   const playerId = searchParams?.get("playerId") || "guest";
 
   const [question, setQuestion] = useState<Question | null>(null);
-  const [scores, setScores] = useState<Record<string, number>>({}); // 👈 strongly typed
+  const [scores, setScores] = useState<Scores>({});
   const [index, setIndex] = useState(0);
   const [players, setPlayers] = useState<string[]>([]);
 
@@ -48,10 +50,10 @@ export default function Game() {
     const channel = supabase
       .channel(`match-${matchId}`)
       .on("broadcast", { event: "score-update" }, (payload) => {
-        setScores(payload.payload.scores || {});
+        setScores(payload.payload.scores);
       })
       .on("broadcast", { event: "player-joined" }, (payload) => {
-        setPlayers(payload.payload.players || []);
+        setPlayers(payload.payload.players);
       })
       .subscribe();
 
@@ -79,8 +81,8 @@ export default function Game() {
         ))}
       </div>
 
-      <h3 className="mt-6 text-lg font-bold">Players</h3>
-      <ul className="list-disc pl-6">
+      <h3 className="mt-6 text-lg font-bold">Scores</h3>
+      <ul>
         {players.map((p) => (
           <li key={p}>
             {p} — {scores[p] ?? 0} points

@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import Game from "./Game"; // we’ll move your logic into Game.tsx
+import Game from "./Game";
 
 export default function GamePage() {
   return (
